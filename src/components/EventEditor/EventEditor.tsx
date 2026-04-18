@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { LoanEvent, PrepaymentStrategy, RepaymentMethod } from '../../core/types'
 import { useLoanStore } from '../../store/loanStore'
+import { CheckCircle } from 'lucide-react'
+import { Confetti } from '../Confetti'
 
 interface EventEditorProps {
   loanId: string
@@ -17,6 +20,20 @@ export function EventEditor({ loanId }: EventEditorProps) {
   const [stopPeriods, setStopPeriods] = useState('')
   const [extensionPeriods, setExtensionPeriods] = useState('')
   const [increaseAmount, setIncreaseAmount] = useState('')
+
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string }>>([])
+  const [confettiBurst, setConfettiBurst] = useState(0)
+  const [confettiPos, setConfettiPos] = useState({ x: 0, y: 0 })
+  const [showConfetti, setShowConfetti] = useState(false)
+  const toastIdRef = useRef(0)
+
+  const addToast = useCallback((message: string) => {
+    const id = ++toastIdRef.current
+    setToasts(prev => [...prev, { id, message }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 2000)
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,155 +100,202 @@ export function EventEditor({ loanId }: EventEditorProps) {
     setExtensionPeriods('')
     setIncreaseAmount('')
     setStrategy('reduce_term')
+
+    addToast('添加成功')
+  }
+
+  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setConfettiPos({ x: e.clientX, y: e.clientY })
+    setConfettiBurst(prev => prev + 1)
+    setShowConfetti(true)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="eventType" className="block text-sm font-medium text-gray-700 dark:text-gray-200">事件类型</label>
-        <select
-          id="eventType"
-          value={eventType}
-          onChange={(e) => setEventType(e.target.value as LoanEvent['type'])}
-          className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-        >
-          <option value="prepayment">提前还款</option>
-          <option value="rate_change">利率变更</option>
-          <option value="method_change">切换还款方式</option>
-          <option value="stop_loan">停贷</option>
-          <option value="term_extension">贷款延期</option>
-          <option value="loan_increase">增加贷款</option>
-          <option value="full_settlement">全额结清</option>
-        </select>
-      </div>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="eventType" className="block text-sm font-medium text-gray-700 dark:text-gray-200">事件类型</label>
+          <select
+            id="eventType"
+            value={eventType}
+            onChange={(e) => setEventType(e.target.value as LoanEvent['type'])}
+            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+          >
+            <option value="prepayment">提前还款</option>
+            <option value="rate_change">利率变更</option>
+            <option value="method_change">切换还款方式</option>
+            <option value="stop_loan">停贷</option>
+            <option value="term_extension">贷款延期</option>
+            <option value="loan_increase">增加贷款</option>
+            <option value="full_settlement">全额结清</option>
+          </select>
+        </div>
 
-      <div>
-        <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 dark:text-gray-200">日期</label>
-        <input
-          id="eventDate"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-          required
-        />
-      </div>
+        <div>
+          <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 dark:text-gray-200">日期</label>
+<input
+            id="eventDate"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1 block w-full min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+            style={{ maxWidth: '100%', appearance: "none" }}
+            required
+          />
+        </div>
 
-      {eventType === 'prepayment' && (
-        <>
+        {eventType === 'prepayment' && (
+          <>
+            <div>
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-200">金额</label>
+              <input
+                id="amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="strategy" className="block text-sm font-medium text-gray-700 dark:text-gray-200">策略</label>
+              <select
+                id="strategy"
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value as PrepaymentStrategy)}
+                className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+              >
+                <option value="reduce_term">缩短期限</option>
+                <option value="reduce_payment">减少月供</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {eventType === 'rate_change' && (
           <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-200">金额</label>
+            <label htmlFor="newRate" className="block text-sm font-medium text-gray-700 dark:text-gray-200">新年利率（%）</label>
             <input
-              id="amount"
+              id="newRate"
               type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              step="0.01"
+              value={newRate}
+              onChange={(e) => setNewRate(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
               required
             />
           </div>
+        )}
+
+        {eventType === 'method_change' && (
           <div>
-            <label htmlFor="strategy" className="block text-sm font-medium text-gray-700 dark:text-gray-200">策略</label>
+            <label htmlFor="newMethod" className="block text-sm font-medium text-gray-700 dark:text-gray-200">新还款方式</label>
             <select
-              id="strategy"
-              value={strategy}
-              onChange={(e) => setStrategy(e.target.value as PrepaymentStrategy)}
+              id="newMethod"
+              value={newMethod}
+              onChange={(e) => setNewMethod(e.target.value as RepaymentMethod)}
               className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
             >
-              <option value="reduce_term">缩短期限</option>
-              <option value="reduce_payment">减少月供</option>
+              <option value="equal_payment">等额本息</option>
+              <option value="equal_principal">等额本金</option>
             </select>
           </div>
-        </>
-      )}
+        )}
 
-      {eventType === 'rate_change' && (
-        <div>
-          <label htmlFor="newRate" className="block text-sm font-medium text-gray-700 dark:text-gray-200">新年利率（%）</label>
-          <input
-            id="newRate"
-            type="number"
-            step="0.01"
-            value={newRate}
-            onChange={(e) => setNewRate(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-            required
-          />
-        </div>
-      )}
+        {eventType === 'stop_loan' && (
+          <div>
+            <label htmlFor="stopPeriods" className="block text-sm font-medium text-gray-700 dark:text-gray-200">停贷期数（月）</label>
+            <input
+              id="stopPeriods"
+              type="number"
+              min="1"
+              value={stopPeriods}
+              onChange={(e) => setStopPeriods(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+              required
+            />
+          </div>
+        )}
 
-      {eventType === 'method_change' && (
-        <div>
-          <label htmlFor="newMethod" className="block text-sm font-medium text-gray-700 dark:text-gray-200">新还款方式</label>
-          <select
-            id="newMethod"
-            value={newMethod}
-            onChange={(e) => setNewMethod(e.target.value as RepaymentMethod)}
-            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-          >
-            <option value="equal_payment">等额本息</option>
-            <option value="equal_principal">等额本金</option>
-          </select>
-        </div>
-      )}
+        {eventType === 'term_extension' && (
+          <div>
+            <label htmlFor="extensionPeriods" className="block text-sm font-medium text-gray-700 dark:text-gray-200">延长期数（月）</label>
+            <input
+              id="extensionPeriods"
+              type="number"
+              min="1"
+              value={extensionPeriods}
+              onChange={(e) => setExtensionPeriods(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+              required
+            />
+          </div>
+        )}
 
-      {eventType === 'stop_loan' && (
-        <div>
-          <label htmlFor="stopPeriods" className="block text-sm font-medium text-gray-700 dark:text-gray-200">停贷期数（月）</label>
-          <input
-            id="stopPeriods"
-            type="number"
-            min="1"
-            value={stopPeriods}
-            onChange={(e) => setStopPeriods(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-            required
-          />
-        </div>
-      )}
+        {eventType === 'loan_increase' && (
+          <div>
+            <label htmlFor="increaseAmount" className="block text-sm font-medium text-gray-700 dark:text-gray-200">增贷金额（元）</label>
+            <input
+              id="increaseAmount"
+              type="number"
+              min="1"
+              value={increaseAmount}
+              onChange={(e) => setIncreaseAmount(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
+              required
+            />
+          </div>
+        )}
 
-      {eventType === 'term_extension' && (
-        <div>
-          <label htmlFor="extensionPeriods" className="block text-sm font-medium text-gray-700 dark:text-gray-200">延长期数（月）</label>
-          <input
-            id="extensionPeriods"
-            type="number"
-            min="1"
-            value={extensionPeriods}
-            onChange={(e) => setExtensionPeriods(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-            required
-          />
-        </div>
-      )}
+        {eventType === 'full_settlement' && (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">此操作将结清全部剩余贷款，请确认日期正确。</p>
+          </div>
+        )}
 
-      {eventType === 'loan_increase' && (
-        <div>
-          <label htmlFor="increaseAmount" className="block text-sm font-medium text-gray-700 dark:text-gray-200">增贷金额（元）</label>
-          <input
-            id="increaseAmount"
-            type="number"
-            min="1"
-            value={increaseAmount}
-            onChange={(e) => setIncreaseAmount(e.target.value)}
-            className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2"
-            required
-          />
-        </div>
-      )}
+        <button
+          type="submit"
+          onClick={handleButtonClick}
+          className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 cursor-pointer"
+        >
+          添加事件
+        </button>
+      </form>
 
-      {eventType === 'full_settlement' && (
-        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">此操作将结清全部剩余贷款，请确认日期正确。</p>
-        </div>
-      )}
+      {toasts.map(toast => (
+        <Toast key={toast.id} message={toast.message} />
+      ))}
 
-      <button
-        type="submit"
-        className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700"
-      >
-        添加事件
-      </button>
-    </form>
+      {showConfetti && (
+        <Confetti
+          key={confettiBurst}
+          x={confettiPos.x}
+          y={confettiPos.y}
+        />
+      )}
+    </>
+  )
+}
+
+function Toast({ message }: { message: string }) {
+  const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    setIsVisible(true)
+    const timer = setTimeout(() => setIsVisible(false), 1700)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return createPortal(
+    <div
+      className={`fixed top-4 left-1/2 z-[9999] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-green-500 px-4 py-3 text-white shadow-lg transition-all duration-300 ${
+        isVisible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+      }`}
+      style={{ maxWidth: '200px' }}
+    >
+      <CheckCircle size={18} />
+      <span className="text-sm font-medium">{message}</span>
+    </div>,
+    document.body
   )
 }

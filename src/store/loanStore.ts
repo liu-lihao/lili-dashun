@@ -11,10 +11,15 @@ import type {
 import { LOAN_COLORS } from '../core/types';
 import { generateMergedSchedule } from '../core/mergeSchedule';
 
+type MobileView = 'loans' | 'config' | 'schedule';
+
 interface LoanStore {
   loans: LoanConfigWithMeta[];
   selectedLoanId: string | null;
   mergedSchedule: MergedPaymentItem[] | null;
+  // Mobile view state
+  mobileView: MobileView;
+  isSidebarOpen: boolean;
 
   // Actions
   addLoan: (loan: Omit<LoanConfigWithMeta, 'id' | 'color' | 'events'>) => string;
@@ -26,6 +31,10 @@ interface LoanStore {
   updateEvent: (loanId: string, eventId: string, updates: Partial<LoanEvent>) => void;
   calculate: () => void;
   reorderLoans: (fromIndex: number, toIndex: number) => void;
+  // Mobile actions
+  setMobileView: (view: MobileView) => void;
+  toggleSidebar: () => void;
+  closeSidebar: () => void;
 }
 
 // 获取下一个可用颜色
@@ -47,6 +56,8 @@ export const useLoanStore = create<LoanStore>()(
         loans: [],
         selectedLoanId: null,
         mergedSchedule: null,
+        mobileView: 'loans' as MobileView,
+        isSidebarOpen: false,
 
         addLoan: (loan) => {
           const id = uuidv4();
@@ -144,6 +155,22 @@ export const useLoanStore = create<LoanStore>()(
           set((state) => {
             const [moved] = state.loans.splice(fromIndex, 1);
             state.loans.splice(toIndex, 0, moved);
+          });
+        },
+        // Mobile actions
+        setMobileView: (view) => {
+          set((state) => {
+            state.mobileView = view;
+          });
+        },
+        toggleSidebar: () => {
+          set((state) => {
+            state.isSidebarOpen = !state.isSidebarOpen;
+          });
+        },
+        closeSidebar: () => {
+          set((state) => {
+            state.isSidebarOpen = false;
           });
         },
       }),
